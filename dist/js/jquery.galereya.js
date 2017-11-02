@@ -1,6 +1,6 @@
 /*!
- * Galereya v0.9.94
- * http://vodkabears.github.com/galereya
+ * Galereya v0.9.95
+ * http://trojanowski-radek.github.com/galereya
  *
  * Licensed under the MIT license
  * Copyright (c) 2013, VodkaBears
@@ -41,7 +41,8 @@
             currentSlideIndex,
             currentCategory,
             isSliderOpened = false,
-            slideShowInterval;
+            slideShowInterval,
+            colsHeight;
 
         /**
          * Default options
@@ -134,6 +135,10 @@
                         default:
                     }
                 }
+            },
+            onLoadFinish: function(e) {
+                console.log('galereya loaded!');
+                console.log(self);
             }
         };
 
@@ -246,7 +251,8 @@
                 "fullsrc": info.fullsrc || '',
                 "title": info.title || '',
                 "description": info.description || '',
-                "category": info.category || ''
+                "category": info.category || '',
+                "column": info.column || '',
             };
 
             if (item.category) {
@@ -271,7 +277,8 @@
                     "fullsrc": img.getAttribute('data-fullsrc') || '',
                     "title": img.getAttribute('title') || img.getAttribute('alt') || '',
                     "description": img.getAttribute('data-desc') || '',
-                    "category": img.getAttribute('data-category') || ''
+                    "category": img.getAttribute('data-category') || '',
+                    "column": img.getAttribute('data-column') || '',
                 };
 
                 addInfo(item);
@@ -308,8 +315,9 @@
                 $img = $(img);
                 title = data[i].title;
                 desc = data[i].description;
+                var column = data[i].column;
                 $img.addClass('galereya-cell-img')
-                    .wrap('<div class="galereya-cell" data-index="' + i + '"></div>')
+                    .wrap('<div class="galereya-cell" data-index="' + i + '" data-column="' + column + '"></div>')
                     .parent()
                     .append('<div class="galereya-cell-desc">\
                                 <div class="galereya-cell-desc-title">' + title + '</div>\
@@ -398,6 +406,38 @@
         };
 
         /**
+         * Get column with minimum height
+         */
+        var getSmallestColumn = function (number) {
+            var smallestColumn = number % colCount;
+            _.each(colsHeight, function(v,k){
+                var thisCol    = k,
+                    thisHeight = v;
+                if (thisHeight < colsHeight[smallestColumn]) {
+                    smallestColumn = parseInt(thisCol);
+                }
+            });
+            return smallestColumn;
+        }
+
+        /**
+         * Find top cell for column
+         */
+        var getTopCellForColumn = function (column) {
+                var cell = null,
+                    top  = 0;
+                _.each(visibleCells, function(el, idx) {
+                        if (el.attributes["data-column"] === column) {
+                                if (el.offsetTop + el.offsetHeight > top || cell === null) {
+                                        cell = el;
+                                        top = el.offsetTop + el.offsetHeight;
+                                }
+                        }
+                });
+                return cell;
+        }
+
+        /**
          * Place the cell into the grid of a visible cells
          * @param cell
          * @param number
@@ -405,10 +445,11 @@
         var placeCell = function (cell, number) {
             var left, top, topCell, col;
 
-            col = number % colCount;
+            col = getSmallestColumn(number);
+
             left = col * cellW + self.options.spacing * col;
             if (number >= colCount) {
-                topCell = visibleCells[number - colCount];
+                topCell = getTopCellForColumn(col);
                 top = topCell.offsetTop + topCell.offsetHeight + self.options.spacing;
             } else {
                 top = 0;
@@ -421,6 +462,9 @@
                 $grid.height(gridH + $grid[0].offsetTop);
             }
 
+            colsHeight[col] += cell.clientHeight;
+
+            cell.attributes['data-column'] = col;
             cell.style.top = top + 'px';
             cell.style.left = left + 'px';
         };
@@ -482,7 +526,9 @@
          */
         var resize = function () {
             calcParams();
-
+            if (colsHeight == undefined) {
+                colsHeight = _.object(_.range(colCount), Array(colCount).fill(0));
+            }
             if ($currentImg.length === 0) {
                 $currentImg = $currentSlide.find('.galereya-slide-img');
             }
@@ -770,11 +816,13 @@
         };
 
         constructor();
+
         if (this.length > 1) {
             this.each(function () {
                 $(this).galereya(options);
             });
         }
+        Handlers.onLoadFinish();
         return this;
     }
 
